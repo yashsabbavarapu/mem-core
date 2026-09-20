@@ -1,5 +1,7 @@
 # mem-core
 
+[![CI](https://github.com/yashsabbavarapu/mem-core/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/yashsabbavarapu/mem-core/actions/workflows/ci.yml?query=branch%3Amain)
+
 Hierarchical ephemeral & long-term agent memory with a hard context budget.
 
 Naive agents fail at memory in one of two ways. Either they replay the whole
