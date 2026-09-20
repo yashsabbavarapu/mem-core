@@ -1,10 +1,10 @@
 # mem-core
 
-**Hierarchical ephemeral & long-term agent memory with a hard context budget.**
+Hierarchical ephemeral & long-term agent memory with a hard context budget.
 
 Naive agents fail at memory in one of two ways. Either they replay the whole
-transcript into every prompt — blowing the token budget, adding latency, and
-triggering *lost-in-the-middle* degradation — or they use a sliding window and
+transcript into every prompt (blowing the token budget, adding latency, and
+triggering *lost-in-the-middle* degradation) or they use a sliding window and
 silently drop the constraint the user stated ten turns ago ("we can't use
 Kubernetes", "the budget is $5,000").
 
@@ -101,7 +101,7 @@ final total       : 272 / 500
 
 ## The three tiers
 
-### Tier 1 — Working memory (`working.py`)
+### Tier 1: Working memory (`working.py`)
 
 A FIFO window of verbatim `Turn` records, bounded by turn count *and*
 optionally by tokens. Nothing is ever destroyed: every eviction path returns
@@ -116,18 +116,18 @@ Rendering is **newest-biased**: turns are packed newest-first then re-ordered
 chronologically, so a tight budget drops the *oldest* turn rather than
 truncating the most recent one.
 
-### Tier 2 — Episodic memory (`episodic.py`)
+### Tier 2: Episodic memory (`episodic.py`)
 
 Past exchanges, embedded and retrieved by similarity **penalised by age**.
 Drained turns are *summarised* on ingest (filler dropped, capped at
 `summary_token_limit`) so Tier 2 stays dense instead of accumulating chat.
 
-* **Durable** — pass `path=` and episodes, vectors included, persist in SQLite
+* **Durable**. Pass `path=` and episodes, vectors included, persist in SQLite
   across restarts (float32 on disk, float64 in RAM).
-* **Vectorised** — scoring is one mat-vec product over a contiguous `(N, d)`
+* **Vectorised**. Scoring is one mat-vec product over a contiguous `(N, d)`
   matrix, and only the top `k` results are materialised as objects.
-* **Bounded** — `max_chunks` compacts the store instead of growing forever.
-* **Thread-safe** — a re-entrant lock guards every read and write.
+* **Bounded**. `max_chunks` compacts the store instead of growing forever.
+* **Thread-safe**. A re-entrant lock guards every read and write.
 
 Measured on this machine (5,000 episodes, 256 dims):
 
@@ -146,13 +146,13 @@ This is the single biggest lever on recall quality, so pick deliberately:
 
 | Backend | Cost | Semantic? | Use when |
 |---|---|---|---|
-| `HashingEmbedder` *(default)* | free, offline | **no** — lexical only | tests, demos, determinism |
+| `HashingEmbedder` *(default)* | free, offline | **no**, lexical only | tests, demos, determinism |
 | `SentenceTransformerEmbedder` | free, offline, `[embeddings]` extra | yes | **production default** |
 | `GeminiEmbedder` | API | yes | you already pay for the API |
 
 The default matches *words*, not *meaning*. Hashed character n-grams (3–5)
-with `log1p` term weighting bridge morphology — `database`/`databases`,
-`deploy`/`deployment` — which lifts recall@1 from 0.40 to 0.60 on the labelled
+with `log1p` term weighting bridge morphology (`database`/`databases`,
+`deploy`/`deployment`) which lifts recall@1 from 0.40 to 0.60 on the labelled
 set in `tests/test_embeddings.py`, but no hashing scheme produces true
 synonymy. If paraphrased queries must retrieve, use a learned backend:
 
@@ -162,33 +162,33 @@ episodic = EpisodicMemory(embedder=build_embedder("sentence-transformers"))
 ```
 
 `build_embedder` wraps the backend in an LRU cache and falls back to the local
-embedder with a warning if a learned one is unavailable — a missing API key
+embedder with a warning if a learned one is unavailable. A missing API key
 degrades recall *quality*, never availability.
 
 The Gemini path has bounded retries with exponential backoff, true batching
 via `batchEmbedContents`, and an injectable transport. Its request and
 response handling is exercised against a faithful stub in the test suite;
-**the live API has not been called** — verify before relying on it.
+the live API has not been called, verify before relying on it.
 
-### Tier 3 — Semantic entity memory (`semantic.py`)
+### Tier 3: Semantic entity memory (`semantic.py`)
 
 Durable `entity.attribute = value` rows in SQLite, primary-keyed on
-`(entity, attribute)`. Extraction is **deterministic** — regex rules, no model
-call — so the same transcript always yields the same facts:
+`(entity, attribute)`. Extraction is **deterministic** (regex rules, no model
+call) so the same transcript always yields the same facts:
 
 | Utterance | Fact |
 |---|---|
 | `My name is Alex` / `My name's Sam` | `user.name = Alex` (conf 0.95) |
 | `We use FastAPI and DuckDB` | `user.tech_stack = ["FastAPI", "DuckDB"]` (0.85) |
 | `We ended up going with Postgres` | `user.tech_stack = ["Postgres"]` (0.85) |
-| `We stopped using Redis` | *retraction* — Redis is removed from the stack |
+| `We stopped using Redis` | *retraction*, Redis is removed from the stack |
 | `My budget is $10k` | `user.budget = 10000` (0.90) |
 | `We can't use Kubernetes` | `user.constraint = must not use Kubernetes` (0.90) |
 | `Our team is based in Lisbon` | `user.location = Lisbon` (0.75) |
 | `I'm in CET` | `user.timezone = CET` (0.80) |
 
 **Conflict resolution.** The incoming value wins when
-`new.confidence >= existing.confidence` — equality included, so a later
+`new.confidence >= existing.confidence`. Equality included, so a later
 restatement of an equally-trusted fact overwrites the earlier one and recency
 breaks the tie. A lower-confidence assertion never clobbers a higher-confidence
 one. List-valued attributes (`tech_stack`) merge as a case-insensitive union,
@@ -206,8 +206,8 @@ a re-entrant lock make one store safe to share across a threaded or async
 server. The schema carries a `user_version` and migrates forward on open; a
 database written by a *newer* mem-core is refused rather than misread.
 
-**Credentials are never persisted.** Values matching credential shapes — API
-keys, tokens, passwords, payment-card numbers, long opaque blobs — are refused
+Credentials are never persisted. Values matching credential shapes (API
+keys, tokens, passwords, payment-card numbers, long opaque blobs) are refused
 at both `ingest_text` and `upsert`. Memory is written to disk and replayed into
 prompts, so a false positive costs nothing and a false negative leaks a secret.
 
@@ -223,7 +223,7 @@ $$\text{score} = \underbrace{\cos(\vec{q}, \vec{c})}_{\text{semantic match}} \ti
 where `Δt` is the age of the chunk **in hours**.
 
 **Why exponential?** Assume relevance decays at a rate proportional to its
-current value — each additional hour costs the same *fraction* of what is
+current value, each additional hour costs the same *fraction* of what is
 left, not the same absolute amount:
 
 ```
@@ -235,7 +235,7 @@ it self-similar: "one day older" is the same multiplier whether the memory is
 one day or one week old. Linear decay would hit zero and truncate history; a
 power law would keep ancient memories competitive far too long.
 
-**Choosing λ from a half-life.** Solve for the age at which a memory is worth
+Choosing λ from a half-life. Solve for the age at which a memory is worth
 half of its fresh self:
 
 ```
@@ -255,7 +255,7 @@ from memcore import EpisodicMemory, half_life_to_lambda
 memory = EpisodicMemory(lambda_decay=half_life_to_lambda(24.0))
 ```
 
-**The property that matters**, asserted directly in `tests/test_episodic.py`:
+The property that matters, asserted directly in `tests/test_episodic.py`:
 two chunks with *identical* content (hence identical cosine similarity) always
 rank newer-first, and the entire gap is attributable to the decay term. With
 `λ = 0` the formula collapses to pure similarity. Negative ages (clock skew)
@@ -269,7 +269,7 @@ The compiler's contract is one line:
 
 > `count_tokens(compiled.to_prompt()) <= budget.total_token_budget`, always.
 
-It holds at *any* budget — 1,500, 40, 6, or 0 — and for any ratio split. Four
+It holds at *any* budget (1,500, 40, 6, or 0) and for any ratio split. Four
 phases:
 
 **1. Reserve.** System instructions and the current query are mandatory and
@@ -280,8 +280,8 @@ other block is empty; the invariant survives even a 1-token budget.
 `ContextBudget` ratios using **largest-remainder rounding**, so slices sum to
 *exactly* the available tokens rather than losing a few to floor division.
 
-**3. Refill.** A tier that cannot spend its slice — an empty entity store, a
-short buffer — donates the remainder to the others in priority order
+**3. Refill.** A tier that cannot spend its slice (an empty entity store, a
+short buffer) donates the remainder to the others in priority order
 `entity → working → episodic`. Unused capacity becomes extra recall instead of
 dead space.
 
@@ -294,22 +294,22 @@ Reclaiming is **structure-aware**, which matters more than it sounds:
 
 | Block | Strategy | Why |
 |---|---|---|
-| Entity facts | drop whole lines, least-confident first | a truncated `user.budget = 5000` reads as `user.budget = 500` — a fabricated constraint is worse than a missing one |
+| Entity facts | drop whole lines, least-confident first | a truncated `user.budget = 5000` reads as `user.budget = 500`, a fabricated constraint is worse than a missing one |
 | Recent turns | drop whole lines from the oldest end | the live exchange must stay intact |
 | Episodic | summarise by information density, then cut | "Sounds good, thanks!" goes before "the budget is $5,000" |
 
 Hard character truncation remains only as a last resort, and the final
 measured check runs regardless, so the contract holds unconditionally.
 
-The priority order encodes the design thesis: **durable constraints outlive
-conversational immediacy, which outlives recalled history.** When the budget
+The priority order encodes the design thesis: durable constraints outlive
+conversational immediacy, which outlives recalled history. When the budget
 gets tight, the agent would rather forget last Tuesday than forget that the
 budget is $5,000.
 
 ### Token accounting
 
 One counter, `memcore.models.count_tokens`, is used by every tier and by the
-compiler — if they disagreed about what a token is, the guarantee would be
+compiler. If they disagreed about what a token is, the guarantee would be
 meaningless. It uses `tiktoken` (`cl100k_base`) when installed and otherwise
 falls back to `ceil(len(text) / 4)`. The fallback is a *ceiling* on purpose:
 over-estimating can only pack less context, never overflow.
@@ -331,12 +331,12 @@ python -m memcore.cli pack --turns 10 --budget 500
 | `test_semantic.py` | 20 extraction rules, retractions, upsert/persistence, confidence-gated conflicts, 8-thread concurrency, schema migration, credential refusal, atomic rendering |
 | `test_embeddings.py` | Determinism and normalisation, LRU behaviour, retrieval-quality regression guard, Gemini request shape / batching / retry / backoff / error handling via a stub transport |
 | `test_summarize.py` | Density ranking, order preservation, token ceilings, and the atomicity property that facts are never emitted partially |
-| `test_compiler.py` | The budget is never breached — 12 budget sizes, 4 ratio splits, empty memories, durable stores, adversarially long content |
+| `test_compiler.py` | The budget is never breached, 12 budget sizes, 4 ratio splits, empty memories, durable stores, adversarially long content |
 
 Beyond the suite, the two core invariants were fuzzed over **300 randomized
 trials** (unicode and emoji content, random ratio splits, 14 budget sizes from
 0 to 4096, 25% against durable SQLite stores) under both the `tiktoken` and
-heuristic counters: **zero budget breaches, zero partial facts**.
+heuristic counters: zero budget breaches, zero partial facts.
 
 ## Layout
 
@@ -360,12 +360,12 @@ than one that documents its floor:
 * The default embedder is **lexical**. Paraphrased queries need
   `[embeddings]`.
 * `GeminiEmbedder` is stub-tested, not live-tested.
-* Retrieval is an exact linear scan — excellent to ~50k episodes, wants an ANN
+* Retrieval is an exact linear scan. Excellent to ~50k episodes, wants an ANN
   index beyond ~100k.
 * Extraction is English, first-person and declarative. It has high precision
   and modest recall by design; layer an LLM `Extractor` for conversational
   phrasing.
-* Summarisation is extractive, not abstractive — it selects sentences, it does
+* Summarisation is extractive, not abstractive. It selects sentences, it does
   not rewrite them.
 
 ## License
