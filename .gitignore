@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.mypy_cache/
+.pytest_cache/
+# Tier 3 entity store written by the CLI
+memory.sqlite

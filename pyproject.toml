@@ -1,0 +1,75 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mem-core"
+version = "0.1.0"
+description = "Hierarchical ephemeral and long-term memory for LLM agents, with a strict context budget compiler."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "mem-core" }]
+keywords = ["llm", "memory", "context", "rag", "agents", "token-budget"]
+classifiers = [
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+]
+dependencies = [
+    "pydantic>=2.6",
+    "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+# Exact BPE accounting instead of the 4-chars-per-token heuristic.
+tokenizer = ["tiktoken>=0.6"]
+# Real semantic recall, computed locally: no API, no per-call cost.
+embeddings = ["sentence-transformers>=2.6"]
+dev = [
+    "ruff>=0.6",
+    "pytest>=8.0",
+    "mypy>=1.8",
+]
+
+[project.scripts]
+memcore = "memcore.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/yashsabbavarapu/mem-core"
+
+[tool.setuptools]
+packages = ["memcore"]
+
+[tool.setuptools.package-data]
+memcore = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.mypy]
+# No python_version pin: CI runs a 3.11/3.12/3.13 matrix, so mypy should
+# check against the interpreter actually running it. Pinning 3.11 makes
+# mypy reject 3.12+ syntax inside third-party stubs (e.g. numpy).
+strict = true
+files = ["memcore", "tests"]
+plugins = ["pydantic.mypy"]
+warn_unreachable = true
+disallow_any_explicit = false
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = ["tiktoken.*", "sentence_transformers.*"]
+ignore_missing_imports = true
+
+[tool.pydantic-mypy]
+init_typed = true
+warn_required_dynamic_aliases = true
+
+[tool.ruff]
+line-length = 125
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
