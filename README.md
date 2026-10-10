@@ -73,6 +73,25 @@ print(context.to_prompt())
 assert context.total_tokens <= 1500         # guaranteed, not hoped for
 ```
 
+prints:
+
+```
+## SYSTEM
+You are an assistant with hierarchical memory. Treat DURABLE FACTS as binding constraints, RECALLED EPISODES as background, and RECENT TURNS as the live conversation.
+
+## CURRENT QUERY
+what stack are we on?
+
+## DURABLE FACTS (entity memory)
+user.budget = 5000
+user.tech_stack = ["FastAPI", "DuckDB"]
+
+## RECENT TURNS (verbatim)
+user: We use FastAPI and DuckDB, my budget is $5000
+```
+
+98 tokens against the 1500 budget. The compiler only spends what the query needs.
+
 ## CLI
 
 ```bash
